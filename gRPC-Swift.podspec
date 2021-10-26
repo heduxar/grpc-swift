@@ -1,7 +1,7 @@
 Pod::Spec.new do |s|
 
-    s.name = 'gRPC-Swift'
-    s.module_name = 'GRPC'
+    s.name = 'MTSGRPC'
+    s.module_name = 'MTSGRPC'
     s.version = '1.5.0'
     s.license = { :type => 'Apache 2.0', :file => 'LICENSE' }
     s.summary = 'Swift gRPC code generator plugin and runtime library'
@@ -13,7 +13,7 @@ Pod::Spec.new do |s|
     s.osx.deployment_target = '10.12'
     s.tvos.deployment_target = '10.0'
     s.watchos.deployment_target = '6.0'
-    s.source = { :git => "https://github.com/grpc/grpc-swift.git", :tag => s.version }
+    s.source = { :git => "https://github.com/heduxar/grpc-swift.git", :tag => s.version }
 
     s.source_files = 'Sources/GRPC/**/*.{swift,c,h}'
 
