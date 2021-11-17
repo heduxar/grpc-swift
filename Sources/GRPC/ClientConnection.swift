@@ -18,7 +18,9 @@ import Logging
 import NIOCore
 import NIOHPACK
 import NIOHTTP2
+#if canImport(NIOSSL)
 import NIOSSL
+#endif
 import NIOTLS
 import NIOTransportServices
 import SwiftProtobuf
@@ -125,9 +127,32 @@ public class ClientConnection {
     )
   }
 
-  /// Closes the connection to the server.
+  /// Close the channel, and any connections associated with it. Any ongoing RPCs may fail.
+  ///
+  /// - Returns: Returns a future which will be resolved when shutdown has completed.
   public func close() -> EventLoopFuture<Void> {
-    return self.connectionManager.shutdown()
+    let promise = self.eventLoop.makePromise(of: Void.self)
+    self.close(promise: promise)
+    return promise.futureResult
+  }
+
+  /// Close the channel, and any connections associated with it. Any ongoing RPCs may fail.
+  ///
+  /// - Parameter promise: A promise which will be completed when shutdown has completed.
+  public func close(promise: EventLoopPromise<Void>) {
+    self.connectionManager.shutdown(mode: .forceful, promise: promise)
+  }
+
+  /// Attempt to gracefully shutdown the channel. New RPCs will be failed immediately and existing
+  /// RPCs may continue to run until they complete.
+  ///
+  /// - Parameters:
+  ///   - deadline: A point in time by which the graceful shutdown must have completed. If the
+  ///       deadline passes and RPCs are still active then the connection will be closed forcefully
+  ///       and any remaining in-flight RPCs may be failed.
+  ///   - promise: A promise which will be completed when shutdown has completed.
+  public func closeGracefully(deadline: NIODeadline, promise: EventLoopPromise<Void>) {
+    return self.connectionManager.shutdown(mode: .graceful(deadline), promise: promise)
   }
 
   /// Populates the logger in `options` and appends a request ID header to the metadata, if
@@ -337,6 +362,7 @@ extension ClientConnection {
     /// provided but the queue is `nil` then one will be created by gRPC. Defaults to `nil`.
     public var connectivityStateDelegateQueue: DispatchQueue?
 
+    #if canImport(NIOSSL)
     /// TLS configuration for this connection. `nil` if TLS is not desired.
     ///
     /// - Important: `tls` is deprecated; use `tlsConfiguration` or one of
@@ -350,6 +376,7 @@ extension ClientConnection {
         self.tlsConfiguration = newValue.map { .init(transforming: $0) }
       }
     }
+    #endif // canImport(NIOSSL)
 
     /// TLS configuration for this connection. `nil` if TLS is not desired.
     public var tlsConfiguration: GRPCTLSConfiguration?
@@ -418,6 +445,7 @@ extension ClientConnection {
     /// - Warning: The initializer closure may be invoked *multiple times*.
     public var debugChannelInitializer: ((Channel) -> EventLoopFuture<Void>)?
 
+    #if canImport(NIOSSL)
     /// Create a `Configuration` with some pre-defined defaults. Prefer using
     /// `ClientConnection.secure(group:)` to build a connection secured with TLS or
     /// `ClientConnection.insecure(group:)` to build a plaintext connection.
@@ -473,6 +501,7 @@ extension ClientConnection {
       self.backgroundActivityLogger = backgroundActivityLogger
       self.debugChannelInitializer = debugChannelInitializer
     }
+    #endif // canImport(NIOSSL)
 
     private init(eventLoopGroup: EventLoopGroup, target: ConnectionTarget) {
       self.eventLoopGroup = eventLoopGroup
@@ -515,6 +544,7 @@ extension ClientBootstrapProtocol {
   }
 }
 
+#if canImport(NIOSSL)
 extension ChannelPipeline.SynchronousOperations {
   internal func configureNIOSSLForGRPCClient(
     sslContext: Result<NIOSSLContext, Error>,
@@ -541,7 +571,10 @@ extension ChannelPipeline.SynchronousOperations {
     try self.addHandler(sslClientHandler)
     try self.addHandler(TLSVerificationHandler(logger: logger))
   }
+}
+#endif // canImport(NIOSSL)
 
+extension ChannelPipeline.SynchronousOperations {
   internal func configureHTTP2AndGRPCHandlersForGRPCClient(
     channel: Channel,
     connectionManager: ConnectionManager,

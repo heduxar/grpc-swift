@@ -13,12 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#if canImport(NIOSSL)
 import EchoImplementation
 import EchoModel
 import GRPC
 import GRPCSampleData
-import NIO
 import NIOConcurrencyHelpers
+import NIOCore
+import NIOPosix
 import NIOSSL
 import XCTest
 
@@ -434,3 +436,5 @@ final class GRPCChannelPoolTests: GRPCTestCase {
     }
   }
 }
+
+#endif // canImport(NIOSSL)

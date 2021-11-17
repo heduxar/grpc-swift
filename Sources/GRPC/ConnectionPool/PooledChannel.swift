@@ -14,9 +14,11 @@
  * limitations under the License.
  */
 import Logging
-import NIO
+import NIOCore
 import NIOHTTP2
+#if canImport(NIOSSL)
 import NIOSSL
+#endif
 import SwiftProtobuf
 
 @usableFromInline
@@ -40,12 +42,35 @@ internal final class PooledChannel: GRPCChannel {
 
     if let tlsConfiguration = configuration.transportSecurity.tlsConfiguration {
       scheme = "https"
+      #if canImport(NIOSSL)
       if let sslContext = try tlsConfiguration.makeNIOSSLContext() {
         tlsMode = .configureWithNIOSSL(.success(sslContext))
       } else {
-        // No SSL context means we're using Network.framework.
+        #if canImport(Network)
+        // - TLS is configured
+        // - NIOSSL is available but we aren't using it
+        // - Network.framework is available, we MUST be using that.
         tlsMode = .configureWithNetworkFramework
+        #else
+        // - TLS is configured
+        // - NIOSSL is available but we aren't using it
+        // - Network.framework is not available
+        // NIOSSL or Network.framework must be available as TLS is configured.
+        fatalError()
+        #endif
       }
+      #elseif canImport(Network)
+      // - TLS is configured
+      // - NIOSSL is not available
+      // - Network.framework is available, we MUST be using that.
+      tlsMode = .configureWithNetworkFramework
+      #else
+      // - TLS is configured
+      // - NIOSSL is not available
+      // - Network.framework is not available
+      // NIOSSL or Network.framework must be available as TLS is configured.
+      fatalError()
+      #endif // canImport(NIOSSL)
     } else {
       scheme = "http"
       tlsMode = .disabled
@@ -152,13 +177,18 @@ internal final class PooledChannel: GRPCChannel {
 
   @inlinable
   internal func close(promise: EventLoopPromise<Void>) {
-    self._pool.shutdown(promise: promise)
+    self._pool.shutdown(mode: .forceful, promise: promise)
   }
 
   @inlinable
   internal func close() -> EventLoopFuture<Void> {
     let promise = self._configuration.eventLoopGroup.next().makePromise(of: Void.self)
-    self._pool.shutdown(promise: promise)
+    self.close(promise: promise)
     return promise.futureResult
+  }
+
+  @usableFromInline
+  internal func closeGracefully(deadline: NIODeadline, promise: EventLoopPromise<Void>) {
+    self._pool.shutdown(mode: .graceful(deadline), promise: promise)
   }
 }

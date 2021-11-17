@@ -13,10 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import Foundation
 import GRPC
-import NIO
+import NIOCore
+#if canImport(NIOSSL)
 import NIOSSL
+#endif
 
 public func makeInteroperabilityTestClientBuilder(
   group: EventLoopGroup,
@@ -25,11 +26,15 @@ public func makeInteroperabilityTestClientBuilder(
   let builder: ClientConnection.Builder
 
   if useTLS {
+    #if canImport(NIOSSL)
     // The CA certificate has a common name of "*.test.google.fr", use the following host override
     // so we can do full certificate verification.
     builder = ClientConnection.usingTLSBackedByNIOSSL(on: group)
       .withTLS(trustRoots: .certificates([InteroperabilityTestCredentials.caCertificate]))
       .withTLS(serverHostnameOverride: "foo.test.google.fr")
+    #else
+    fatalError("'useTLS: true' passed to \(#function) but NIOSSL is not available")
+    #endif // canImport(NIOSSL)
   } else {
     builder = ClientConnection.insecure(group: group)
   }
